@@ -52,6 +52,12 @@ I include a finding only when it reproduces on the current main branch, has a na
 - **Fix:** Rejected null or omitted `withdrawals`, `blobGasUsed` and `excessBlobGas` as invalid parameters.
 - **Proof:** Regressions cover explicit null and omitted fields. The maintainer PR superseded my #13734 while retaining my commits and authorship.
 
+### [Nethermind #13755](https://github.com/NethermindEth/nethermind/pull/13755)
+
+- **Problem:** Nethermind still served `engine_getPayloadV5` at Amsterdam, even though its V5 response cannot carry Amsterdam's `slotNumber` or `blockAccessList`. It could return an outdated payload shape instead of `-38005 Unsupported fork`.
+- **Fix:** Limited V5 to its Osaka window and rejected it once block-level access lists are enabled.
+- **Proof:** The focused regression failed in both fixture modes before the fix and passed 2/2 afterward. The V4/V5/V6 fork-boundary suite passed 33/33, preserving Osaka V5 behaviour. The PR received three maintainer approvals, merged into `master` on 24 September 2026 and closed [#13713](https://github.com/NethermindEth/nethermind/issues/13713) as completed.
+
 ### [DefiLlama Pegged Assets #927](https://github.com/DefiLlama/peggedassets-server/pull/927)
 
 - **Problem:** The EURR description named Revolut as the issuer, although Bridge Building S.A. issues the token and Revolut distributes it.
@@ -81,11 +87,3 @@ I include a finding only when it reproduces on the current main branch, has a na
 - **Problem:** An obsolete configuration invoked the removed `codex mcp-server` command and could break Claude Code start-up.
 - **Fix:** I reported and proposed the removal in #303. The maintainer shipped the core fix in the broader #306 clean-up.
 - **Proof:** Plugin loadability, metadata, shell, Bats, JavaScript and temporary Git fixture checks covered the change.
-
-## Approved, awaiting merge
-
-### [Nethermind #13755](https://github.com/NethermindEth/nethermind/pull/13755)
-
-- **Problem:** Amsterdam incorrectly accepted `engine_getPayloadV5`, although V5 is valid at Osaka and superseded at Amsterdam.
-- **Fix:** Limited V5 to the EIP-7594 window before block-level access lists are enabled.
-- **Proof:** The new Amsterdam regression fails before the fix and passes after it. Fork-boundary tests preserve Osaka V5 behaviour. A Nethermind maintainer approved the PR on 24 September 2026; it is still open.
