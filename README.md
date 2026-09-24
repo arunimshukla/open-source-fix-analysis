@@ -10,6 +10,12 @@ I include a finding only when it reproduces on the current main branch, has a na
 
 ## Merged fixes
 
+### [OpenAI Guardrails JS #148](https://github.com/openai/openai-guardrails-js/pull/148)
+
+- **Problem:** The vector-store helper checked a path's extension before checking whether the path was a file or directory. Directories such as `documents.v1` or `archive.zip` were therefore rejected even when they contained supported documents.
+- **Fix:** Classified the path first, then applied the extension allowlist only to regular files. Directory filtering remains case-insensitive and non-recursive.
+- **Proof:** Three dotted-directory regressions failed against the original implementation and passed after the fix. All 882 tests, build, lint and documentation checks passed locally; CI passed on Node.js 22, 24 and 26, together with both CodeQL analyses. OpenAI approved and merged the PR on 24 September 2026.
+
 ### [go-ethereum #35710](https://github.com/ethereum/go-ethereum/pull/35710)
 
 - **Problem:** Ethereum JSON-RPC documentation no longer matched the implementation.
