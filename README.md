@@ -12,9 +12,67 @@ I include a finding only when it reproduces on the current main branch, has a na
 
 ### [OpenAI Codex Security #1020](https://github.com/openai/codex-security/pull/1020)
 
-- **Problem:** The `scan --patch` workflow could report success when the model returned `no_change` without explaining how it had checked the finding. A claim that no fix was needed could therefore clear the finding without verification evidence.
-- **Fix:** Extended the existing verification requirement to `no_change` results. Missing or whitespace-only verification now produces a failed result and exit code 2. Valid `no_change` results remain accepted, and the response instructions explicitly require verification for both successful statuses. This checks that an explanation exists; it does not establish that the explanation is true.
-- **Proof:** Controlled before/after tests reproduced success for missing and blank verification on the unpatched code and rejection after the fix. The [maintainer confirmed](https://github.com/openai/codex-security/pull/1020#issuecomment-5855914520) 72 focused tests passed, plus two full SDK runs with 3,242 passed, 50 skipped and no failures each. Builds, type checks, formatting and GitHub CI passed. Approved and merged on 27 September 2026, with the original fix credited to me.
+**Requiring verification before accepting “no change needed”**
+
+Merged on 27 September 2026. The [pull request](https://github.com/openai/codex-security/pull/1020) credits me with the original fix. The maintainer updated the branch, confirmed the validation results and approved the change before merge.
+
+#### The problem in plain English
+
+Codex Security's `scan --patch` workflow can ask a model to address a security finding. A successful outcome can mean that the model applied and checked a fix, or that it determined the existing code was already safe and needed no change.
+
+Both conclusions need an explanation of what was checked. Before this fix, the application enforced that requirement for `verified` results but not for `no_change` results. A model could return “no change needed” without any verification explanation, and the workflow could still report success.
+
+That matters when another system uses the command's result to decide whether a security check passed. The model's unsupported conclusion could be accepted as a resolved outcome. The regression demonstrated this with a high-severity finding and the command's severity-based failure policy; it did not demonstrate exploitation of a live system.
+
+#### How the failure happened
+
+The workflow reads a structured model response containing the finding identifier, result status, affected files and an optional verification explanation.
+
+The relevant check originally applied only when the status was `verified`. A response with status `no_change` bypassed it. An omitted explanation and an explanation containing only spaces, tabs or line breaks both left the same gap.
+
+The problem was therefore in the application logic that accepted the response. Updating the model's instructions alone would not enforce the requirement.
+
+#### What changed
+
+The fix extended the existing check to both successful statuses:
+
+```ts
+(parsed.data.status === "verified" ||
+  parsed.data.status === "no_change") &&
+!parsed.data.verification?.trim()
+```
+
+If this condition is true, the application converts the response into a failed result with the reason `Patch verification was not reported.`. The workflow returns exit code 2 instead of success.
+
+The response instructions were also updated to require verification for both statuses. A valid `no_change` result remains supported: the model does not have to edit a file or create a pull request when it can explain why the current code is already safe.
+
+The production change was limited to the existing validation check and response instructions. It introduced no new command options or output fields.
+
+#### How the fix was proved
+
+The regression tests supplied controlled model responses, allowing the same missing-verification cases to be exercised reliably without waiting for a live model to produce them.
+
+| Response | Expected outcome after the fix |
+| --- | --- |
+| `no_change` with missing verification | Failed result; exit code 2 |
+| `no_change` with whitespace-only verification | Failed result; exit code 2 |
+| Valid `no_change` response | Remains accepted without creating a pull request |
+| `verified` with missing or whitespace-only verification | Remains rejected |
+| Blocked, failed or malformed response | Remains unresolved |
+
+The [PR validation record](https://github.com/openai/codex-security/pull/1020) reports that the same regression tests failed twice on the unpatched main branch because missing and blank `no_change` verification returned success. All eight selected cases passed with the fix. The focused patch suite passed 72 tests using seed `12345` and the existing 30-second timeout.
+
+The [maintainer's validation comment](https://github.com/openai/codex-security/pull/1020#issuecomment-5855914520) additionally confirms two full SDK runs, each with 3,242 tests passed, 50 skipped and no failures, plus successful builds, type checks, formatting and GitHub CI.
+
+The maintainer also ran the built command with a real model against a benign local fixture. That scan completed with full coverage, no findings and unchanged source files. It checked scan compatibility; the controlled regression tests established the missing-verification failure and its correction. These results are attributed to the PR record and maintainer report, not to a new test run performed while writing this analysis.
+
+#### What this fix guarantees
+
+The application now refuses to accept either successful status without a nonblank verification explanation. It closes a specific gap in how model responses are accepted.
+
+It does **not** prove that the explanation is correct, that the reported checks actually ran or that the underlying code is safe. A nonblank but inaccurate explanation can still satisfy this check. The contribution enforces a necessary evidence requirement; it does not independently validate that evidence.
+
+The broader engineering lesson is that every outcome capable of clearing a finding needs an explicit acceptance rule. “No change needed” deserves verification just as an applied patch does.
 
 ### [OpenAI Guardrails JS #148](https://github.com/openai/openai-guardrails-js/pull/148)
 
