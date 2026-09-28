@@ -10,6 +10,12 @@ I include a finding only when it reproduces on the current main branch, has a na
 
 ## Merged fixes
 
+### [OpenAI Codex Security #1020](https://github.com/openai/codex-security/pull/1020)
+
+- **Problem:** The `scan --patch` workflow could report success when the model returned `no_change` without explaining how it had checked the finding. A claim that no fix was needed could therefore clear the finding without verification evidence.
+- **Fix:** Extended the existing verification requirement to `no_change` results. Missing or whitespace-only verification now produces a failed result and exit code 2. Valid `no_change` results remain accepted, and the response instructions explicitly require verification for both successful statuses. This checks that an explanation exists; it does not establish that the explanation is true.
+- **Proof:** Controlled before/after tests reproduced success for missing and blank verification on the unpatched code and rejection after the fix. The [maintainer confirmed](https://github.com/openai/codex-security/pull/1020#issuecomment-5855914520) 72 focused tests passed, plus two full SDK runs with 3,242 passed, 50 skipped and no failures each. Builds, type checks, formatting and GitHub CI passed. Approved and merged on 27 September 2026, with the original fix credited to me.
+
 ### [OpenAI Guardrails JS #148](https://github.com/openai/openai-guardrails-js/pull/148)
 
 - **Problem:** The vector-store helper checked a path's extension before checking whether the path was a file or directory. Directories such as `documents.v1` or `archive.zip` were therefore rejected even when they contained supported documents.
