@@ -22,6 +22,12 @@ I include a finding only when it reproduces on the current main branch, has a na
 - **Fix:** Classified the path first, then applied the extension allowlist only to regular files. Directory filtering remains case-insensitive and non-recursive.
 - **Proof:** Three dotted-directory regressions failed against the original implementation and passed after the fix. All 882 tests, build, lint and documentation checks passed locally; CI passed on Node.js 22, 24 and 26, together with both CodeQL analyses. OpenAI approved and merged the PR on 24 September 2026.
 
+### [Promptfoo #11243](https://github.com/promptfoo/promptfoo/pull/11243)
+
+- **Problem:** The Google Vertex Claude provider resolved `top_p` and `top_k` aliases with logical OR. Because `0` is falsy, an explicit zero could be replaced by the camelCase alias or omitted, changing the sampling configuration sent to the model.
+- **Fix:** Replaced the two falsy fallbacks with nullish coalescing so only a missing value falls through, while preserving the existing alias precedence and newer-model sampling suppression.
+- **Proof:** Regression cases cover explicit zero values against non-zero aliases. The maintainer independently verified that reverting either fallback makes its regression fail, then ran 1,146 Google provider tests, typecheck, the CLI build, formatting/lint and ten mocked-transport QA configurations. All 57 applicable PR checks were green before merge on 29 September 2026.
+
 ### [go-ethereum #35710](https://github.com/ethereum/go-ethereum/pull/35710)
 
 - **Problem:** Ethereum JSON-RPC documentation no longer matched the implementation.
