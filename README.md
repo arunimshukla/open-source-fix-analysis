@@ -10,6 +10,12 @@ I include a finding only when it reproduces on the current main branch, has a na
 
 ## Merged fixes
 
+### [Google Chrome Platform Status #6946](https://github.com/GoogleChrome/chromium-dashboard/pull/6946)
+
+- **Problem:** Chrome Platform Status hides stage-level actions when an API Owners gate is present and expects the gate column to render actions associated with that gate. The experiment-extension email action had an empty gate-type list in the normal launch, fast-track and deprecation process definitions, so neither rendering path displayed it.
+- **Fix:** Associated all three email actions with `GATE_API_EXTEND_ORIGIN_TRIAL` and added one regression covering the three process definitions. The change leaves the email URL, prerequisites and approval rules untouched.
+- **Proof:** The regression failed on the unpatched `main` branch for all three definitions with `AssertionError: 3 not found in []`, then passed after the fix. Ruff lint and formatting, the licence check, `git diff --check` and mypy across 363 source files also passed. A maintainer approved the change, and Google's merge queue landed it as [`ca80064`](https://github.com/GoogleChrome/chromium-dashboard/commit/ca80064d966c5f58df7c25941ebe8416d7ae9a03) on 29 September 2026. It was subsequently included in the closed [deployment release #6950](https://github.com/GoogleChrome/chromium-dashboard/issues/6950).
+
 ### [OpenAI Codex Security #1020](https://github.com/openai/codex-security/pull/1020)
 
 - **Problem:** The `scan --patch` workflow could report success when the model returned `no_change` without explaining how it had checked the finding. A claim that no fix was needed could therefore clear the finding without verification evidence.
