@@ -10,6 +10,18 @@ I include a finding only when it reproduces on the current main branch, has a na
 
 ## Merged fixes
 
+### [Centrifuge API v3 #489](https://github.com/centrifuge/api-v3/pull/489)
+
+- **Problem:** Pharos (chain ID `1672`) was listed in `networkNames` but missing from `explorerUrls`. The indexer therefore initialised `Blockchain.explorer` without a Pharos URL, causing Token and NAV links to fall back to the pool dashboard.
+- **Fix:** Added `https://www.pharosscan.xyz` for chain `1672` in `src/chains.ts`, preserving the existing chain and RPC configuration.
+- **Proof:** Checked the chain mapping and the timekeeper path that populates `Blockchain.explorer`. The merged diff adds only the explorer mapping. A maintainer approved the PR and merged it on 1 October 2026, closing [#479](https://github.com/centrifuge/api-v3/issues/479). Existing Pharos rows may still require a refresh or reindex because `getOrInit` does not update initialised records.
+
+### [ethereum.org #19272](https://github.com/ethereum/ethereum-org-website/pull/19272)
+
+- **Problem:** The Glamsterdam roadmap's manually maintained proposal notice had drifted from the generated upgrade data. It still listed EIP-7610 and omitted the scheduled networking proposals EIP-8070, EIP-8136 and EIP-8189.
+- **Fix:** Removed EIP-7610 and added eth/72 (EIP-8070), EIP-8136 and snap/2 (EIP-8189) to the English source. The change preserves the page's structure and leaves translation propagation to the internationalisation pipeline.
+- **Proof:** Checked the proposal list against `src/data/upgrades/generated.ts`. The PR records zero markdownlint errors and a passing `git diff --check`; its diff changes only `public/content/roadmap/glamsterdam/index.md`. A maintainer approved and merged the PR on 1 October 2026. The team also added me as an ethereum.org maintenance contributor in [#19364](https://github.com/ethereum/ethereum-org-website/pull/19364).
+
 ### [Google Chrome Platform Status #6946](https://github.com/GoogleChrome/chromium-dashboard/pull/6946)
 
 - **Problem:** Chrome Platform Status hides stage-level actions when an API Owners gate is present and expects the gate column to render actions associated with that gate. The experiment-extension email action had an empty gate-type list in the normal launch, fast-track and deprecation process definitions, so neither rendering path displayed it.
