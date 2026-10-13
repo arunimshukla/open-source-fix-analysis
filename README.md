@@ -1,14 +1,75 @@
 # Open Source Fix Analysis
 
-This repository records my upstream fixes that have been merged after reproducible validation. Each entry states the problem, the change and the proof kept with the pull request.
+This repository records upstream fixes and independently verifiable contributions incorporated into open-source projects. Each entry links the original review, the change, and the validation evidence. PRs integrated through internal code-sync are identified explicitly rather than represented as GitHub-native merges.
 
 ## Method
 
 Inventory → Discover → Validate → Assign → Remediate → Prove
 
-I include a finding only when it reproduces on the current main branch, has a narrow fix and has regression evidence.
+For executable bugs, I seek a reproducible failure on the upstream base, a narrow fix and a regression demonstrating the difference. Documentation and configuration corrections are checked against the source of truth. Impact ratings are self-assessed, not maintainer-assigned; an API panic is not automatically a remote denial-of-service vulnerability.
 
 ## Merged fixes
+
+### [EthSystems Works #51 — rotortree snapshot root panic](https://github.com/ethsystems/works/pull/51) · Medium API reliability (self-assessed)
+
+- **Problem:** A valid `rotortree` Merkle tree can grow to `MAX_DEPTH`, but `TreeSnapshot` stores only `MAX_DEPTH` non-root level slots in `levels`. Calling the public `level_len(depth)` or `get_node(depth, index)` at that depth indexed `levels[MAX_DEPTH]` and panicked, including before the tree reached full leaf capacity. This is a reproducible reliability defect; a production outage or remote exploit has not been demonstrated.
+- **Fix:** Return the root count and hash from the separately stored `self.root` whenever `level == self.depth`, preserving empty-tree behaviour and returning `IndexOutOfRange` for invalid indices. The patch touches only the two accessors and their tests in `crates/rotortree`.
+- **Proof:** The maximum-depth regression failed with an index-out-of-bounds panic against upstream `e5061c8` (1 failing and 3 passing focused tests); applying the patch gave **4 passing, 0 failing**. Regression coverage exercises sequential and batch insertion, binary depth 1 and 3, ternary depth 2, and each maximum-depth leaf-count range, plus empty/single-leaf controls. Locally, **107 default**, **180 all-feature** and **107 no-default-feature** tests passed, alongside Clippy, nightly formatting and diff checks. Maintainer `rymnc` requested test simplification and a signed commit, approved the revised patch, and merged it on 13 October 2026 as [`1449c62`](https://github.com/ethsystems/works/commit/1449c629b33e312d56b3a2f8e4511b69878524ba).
+
+### [DeFiLlama SDK #266 — log-cache range union](https://github.com/DefiLlama/defillama-sdk/pull/266)
+
+- **Problem:** A forced nested `getLogs` fetch could reduce the recorded end of a cached range. With an existing [100, 1000] range, requesting [500, 600] wrote [100, 610], because the merge replaced `toBlock` with the shorter padded range's end.
+- **Fix:** Keep `Math.max` of covered end blocks when ranges overlap; merge adjacent ranges while leaving disjoint ranges separate.
+- **Proof:** A red/green Jest regression exercises nested, right-extending, adjacent and disjoint ranges. **4 tests**, the TypeScript build and diff check passed. Maintainer `g1nt0ki` approved; merged 12 October 2026 as [`f286359`](https://github.com/DefiLlama/defillama-sdk/commit/f286359540579f4f1a9f41366182f8fab3519e2e). This fixes cache bookkeeping; no missing-log incident is claimed.
+
+### [WhatsApp Erlang Language Platform #284 — grouped Common Test runnables](https://github.com/WhatsApp/erlang-language-platform/pull/284)
+
+- **Problem:** Rebar3 Common Test runnables emitted a bare group name after `--case` instead of the required `--group <name>`.
+- **Fix:** Insert the flag only for grouped tests, leaving ungrouped runnables unchanged; add both grouped and ungrouped regressions.
+- **Proof:** The new regression failed before the fix while **1,809 control tests passed**. Workspace tests passed in reported Linux and macOS OTP matrices. **Meta internal merge:** `robertoaloi` imported the contribution into internal review and merged it as [`05020fd`](https://github.com/WhatsApp/erlang-language-platform/commit/05020fda13fa6592538fb56ca2b1d463ab3e0c8f), as [confirmed by Meta's code-sync bot](https://github.com/WhatsApp/erlang-language-platform/pull/284#issuecomment-6078526521). GitHub marks the original PR closed rather than natively merged.
+
+### [Nethermind Juno #4146 — JSON-RPC notification responses](https://github.com/NethermindEth/juno/pull/4146)
+
+- **Problem:** Juno sent JSON-RPC error responses to requests without an `id` when the method was unknown or parameters invalid. The JSON-RPC specification prohibits responding to notifications.
+- **Fix:** Suppress all notification responses after dispatch without suppressing error responses for ID-bearing requests.
+- **Proof:** Four red/green regressions cover unknown-method notifications, invalid-parameter notifications, notification-only batches and mixed batches. The relevant packages passed `go test -race`. Approved and merged 8 October 2026 as [`4c6b4d3`](https://github.com/NethermindEth/juno/commit/4c6b4d318a6eb038fabb918db7cf271763827c80).
+
+### [Polygon Agent CLI #142 — x402 dry-run transaction safety](https://github.com/0xPolygon/polygon-agent-cli/pull/142)
+
+- **Problem:** `x402-pay` unconditionally broadcast a funding transaction, bypassing the CLI's persisted dry-run transaction mode.
+- **Fix:** Use the existing transaction-mode resolver and shared `--broadcast` / `--dry-run` flags; return a structured payment preview rather than moving funds while dry-run is active.
+- **Proof:** Regression coverage checks standard x402 and Bazaar payment paths do not submit transactions in dry-run mode. [Fixes issue #130](https://github.com/0xPolygon/polygon-agent-cli/issues/130); merged 8 October 2026 as [`b3e81d0`](https://github.com/0xPolygon/polygon-agent-cli/commit/b3e81d0fa64b95a5c83f0a1073ee9ea30ec2b6d8).
+
+### [Solana Foundation website #2150 — transaction v1 slot-time blocks](https://github.com/solana-foundation/solana-com/pull/2150)
+
+- **Problem:** The slot-time endpoint requested full blocks with `maxSupportedTransactionVersion: 0`; blocks containing v1 transactions could be rejected, leaving a stale cached block instead of a fresh update.
+- **Fix:** Permit version 1 in the RPC request and preserve program-ID resolution using static and loaded address-table keys.
+- **Proof:** Regressions assert the exact JSON-RPC request and address resolution; **3 Vitest tests**, TypeScript and formatting checks passed. [Fixes #2141](https://github.com/solana-foundation/solana-com/issues/2141); merged as [`a233795`](https://github.com/solana-foundation/solana-com/commit/a233795827fb9ff3581a3f915c7ccc518c1a7b88).
+
+### [Promptfoo MCP Agent Provider #95 — measured model usage](https://github.com/promptfoo/mcp-agent-provider/pull/95)
+
+- **Problem:** The provider estimated OpenAI token counts from message counts and fabricated costs with a hard-coded price, producing misleading usage reports across multi-step tool calls.
+- **Fix:** Aggregate actual API-reported token usage across ReAct iterations, omit incomplete totals, and remove unsupported synthetic costs.
+- **Proof:** Real-SDK loopback regressions cover measured, zero and missing usage; the reported **31 tests** and Node 20/22/24 checks passed. Merged upstream as [`6478386`](https://github.com/promptfoo/mcp-agent-provider/commit/6478386ffb7207ab832d0e0849695213e09bef71).
+
+### [Promptfoo MCP Agent Provider #96 — legacy SSE fallback](https://github.com/promptfoo/mcp-agent-provider/pull/96)
+
+- **Problem:** The advertised Streamable HTTP → SSE fallback ran only during transport construction, but incompatibility with an SSE-only endpoint surfaces during `client.connect()`.
+- **Fix:** On qualifying 4xx `StreamableHTTPError` negotiation failures, close the failed connection, create a fresh MCP client and retry with legacy SSE; do not mask unrelated transport failures.
+- **Proof:** An end-to-end legacy SSE server fixture validates the negotiated fallback, with Node 20/22/24 and Biome CI reported passing. Merged as [`bf5f668`](https://github.com/promptfoo/mcp-agent-provider/commit/bf5f6686bb62c16c73b13bf0220c7205263b66bf).
+
+### [OpenAI Codex Security #1306 — Vyper source scan coverage](https://github.com/openai/codex-security/pull/1306)
+
+- **Problem:** The shared source-code allowlist omitted `.vy` files, so Vyper-only changes could disappear before scan inventory and ranking.
+- **Fix:** Include Vyper sources in existing text-code inventory and ranking flows and add targeted regressions for repository, revision-diff and local-patch paths.
+- **Proof:** An OpenAI maintainer independently reproduced **five failing inventory/ranking cases on the parent** and verified that all passed after the fix. **295 tests** passed across affected modules, with no blocking behaviour issues. Merged 5 October 2026 as [`d327164`](https://github.com/openai/codex-security/commit/d32716411f3d7b87085b36f9de55f0ac40454c42).
+
+### [Nethermind #14228 — JWT cache expiration](https://github.com/NethermindEth/nethermind/pull/14228)
+
+- **Problem:** A correctly signed JWT that initially passed validation could continue to authenticate from the cache after its explicit `exp`, because cache hits used the `iat` window without rechecking expiration.
+- **Fix:** Apply the same exclusive expiry boundary (`now >= exp` is rejected) to cached and fresh validation while retaining the normal valid-token fast path.
+- **Proof:** A deterministic clock-based reproduction compares fresh validation against cache reuse at `iat + 1`, exact expiry, and subsequent times. Both manual HS256 and library fallback paths are covered by regressions. Merged 5 October 2026 as [`eeca264`](https://github.com/NethermindEth/nethermind/commit/eeca26403bef8420a980ebde700c9e338caa75e8).
+
 
 ### [Centrifuge API v3 #489](https://github.com/centrifuge/api-v3/pull/489)
 
