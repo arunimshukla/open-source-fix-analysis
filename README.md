@@ -10,6 +10,78 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 
 ## Merged fixes
 
+### [Nethermind Juno #4199 — WebSocket busy responses for notifications](https://github.com/NethermindEth/juno/pull/4199)
+
+- **Problem** — Juno's WebSocket admission gate could return `-32004` with `id: null` for a valid JSON-RPC notification when the gate was full. The rejection happens before normal dispatch, so the notification handling in [#4146](https://github.com/NethermindEth/juno/pull/4146) never sees it.
+- **Fix** — Suppress the busy write for a valid notification or an allowed, non-empty notification-only batch. Validate the complete JSON value and honour the batch enablement and size limits. ID-bearing requests, mixed batches and malformed input still take the busy-response path.
+- **Proof** — A real WebSocket regression fills the gate and follows silent cases with an identified probe. The final batch-policy revision reports **37 passing cases**, with three new boundary cases failing on the preceding revision. The JSON-RPC race suite, `go vet` and lint checks passed. Merged on 3 November 2026 as [`4a498bf`](https://github.com/NethermindEth/juno/commit/4a498bf5d2e710c160d344dcb7519aa354a6ab7c).
+
+### [Fhenix CoFHE SDK #455 — stale React wallet connections](https://github.com/FhenixProtocol/cofhesdk/pull/455)
+
+- **Problem** — `useCofheAutoConnect` skipped new client pairs while a connection was in flight. If the account or chain changed before the original attempt completed, CoFHE could stay bound to the old clients.
+- **Fix** — Forward the latest public and wallet clients to the core SDK. Its existing attempt-ID guard prevents an older completion or error from replacing the newer connection.
+- **Proof** — Five regressions use the real React provider and SDK store, with controlled wallet and RPC responses. Restoring the old guard makes three fail. All five pass with the fix, alongside **83 React tests**, **23 core client tests**, type checks and the React build. Merged on 29 October 2026 as [`4119d87`](https://github.com/FhenixProtocol/cofhesdk/commit/4119d875ff0a1788a541b8414909103614496186).
+
+### [Solana IDL #17 — RPC failures during history reconstruction](https://github.com/solana-foundation/idl/pull/17)
+
+- **Problem** — Signature-list failures could be converted to empty history, and transaction-fetch failures could be skipped during Anchor and Program Metadata Program replay. Callers could receive a successful but incomplete reconstruction.
+- **Fix** — Remove the four error-suppression sites so the original RPC failure reaches the caller. Empty-history fallback, null transactions and failed-signature skipping still work.
+- **Proof** — Five offline cases failed on the upstream base while five controls passed. All ten passed after the fix, along with **132 IDL tests** and **22 security.txt tests**. Recorded fixtures cover the fallback authority path. This follows the error-versus-absence handling in [#10](https://github.com/solana-foundation/idl/pull/10). Merged on 29 October 2026 as [`9bce612`](https://github.com/solana-foundation/idl/commit/9bce6120e00d9f44d3bb92b5eeaabd1c118c82d3).
+
+### [Nethermind #15190 — pruned receipts for non-canonical blocks](https://github.com/NethermindEth/nethermind/pull/15190)
+
+- **Problem** — `eth_getLogs(blockHash)` could misclassify a previously processed non-canonical block with pruned receipts as unprocessed. Canonical retention by address and height also could not establish that receipts for the requested non-canonical hash were available.
+- **Fix** — Consult the stored `WasProcessed` flag, check for missing non-canonical receipts before applying sliced-retention guarantees, and bypass the canonical height index for hash-pinned queries.
+- **Proof** — Production-pruner regressions leave the orphan header and processing metadata in place while removing its body and receipts. Both log finders report unavailable history, and a separate indexed-query regression returns the orphan's logs when its receipts are available. The PR records **293 passing tests** across log finding, RPC and history pruning. Merged on 29 October 2026 as [`600db9b`](https://github.com/NethermindEth/nethermind/commit/600db9bf8f9516137d2cfff200f28de90101148e).
+
+### [Theorem Labs OSS Verify #9 — allocation instrumentation and conflicting lock pins](https://github.com/theorem-labs/oss-verify/pull/9)
+
+- **Problem** — Allocation-failure and counting links could silently leave allocator calls untouched when libraries were supplied indirectly. Repeated `--lock` arguments also let the last hash override a conflicting pin for the same target and build.
+- **Fix** — Require explicit object or archive inputs for the two allocation engines and reject conflicting SHA-256 pins before building. Ordinary `$LIB_FUZZING_ENGINE` links and identical or disjoint pins retain their behaviour.
+- **Proof** — The maintainer reproduced **16 failures** on `main` and verified the regressions passed with the fix. Native linker fixtures exercise actual allocation failure and counting. The maintainer's suite reported **134 passing tests**, with Docker-dependent cases skipped. Landed through [#13](https://github.com/theorem-labs/oss-verify/pull/13) on 24 October 2026 as [`906db00`](https://github.com/theorem-labs/oss-verify/commit/906db00b97941e8823a5faf954de32c2cb7520c0).
+
+### [Theorem Labs OSS Verify #7 — locked commits and annotated tags](https://github.com/theorem-labs/oss-verify/pull/7)
+
+- **Problem** — `tools/check --lock` resolved the live branch or tag before using the pinned commit, so a deleted or ambiguous ref could block a reproducible build. Fully qualified annotated tags could also resolve to the tag object instead of the commit the builder checked out.
+- **Fix** — Use the pinned commit directly when present and peel qualified annotated tags to commits. Locks without a commit still resolve the live ref, and unqualified branch/tag ambiguity is still rejected.
+- **Proof** — Real local Git fixtures cover deleted, moved and ambiguous refs plus lightweight, annotated and nested tags. The maintainer reproduced **5 failures** on `main` and verified **12/12** new cases passed after the fix. Docker-dependent cases were skipped in the broader run. Landed through [#12](https://github.com/theorem-labs/oss-verify/pull/12) on 24 October 2026 as [`e844fdd`](https://github.com/theorem-labs/oss-verify/commit/e844fdde05486a6fbbc5d9a5c57425b0e7a9d00f).
+
+### [Nethermind #14877 — SendPolicy rule reloads with unchanged metadata](https://github.com/NethermindEth/nethermind/pull/14877)
+
+- **Problem** — SendPolicy cached rules by file size and modification time. A replacement that preserved both could leave a removed destination permission active or hide malformed rules.
+- **Fix** — Compare file contents and reread under the reload lock before publishing a change. Reuse the cached rules when the contents match. If the file becomes unusable, retain the last known guarded senders and refuse their sends. The configuration guidance now specifies atomic replacement.
+- **Proof** — Eight same-metadata cases failed on the upstream base. A controlled concurrency regression also reproduced an older snapshot overwriting newer guarded-sender state on an earlier revision. The reported Linux run passed **77 tests** with one Windows-only test skipped. Merged on 21 October 2026 as [`dc6f0bc`](https://github.com/NethermindEth/nethermind/commit/dc6f0bc4266a1802286b79053377d31280797166).
+
+### [Solana Governance #242 — Top Voters CSV export](https://github.com/solana-foundation/solana-governance/pull/242)
+
+- **Problem** — The Top Voters download control had no export handler. During review, the first implementation also left the control enabled during a background refetch and allowed formula-like validator names through.
+- **Fix** — Export the complete filtered and sorted result before pagination. Escape CSV fields, neutralise formula prefixes in external strings and disable the download while votes are fetching or the result is empty.
+- **Proof** — Regressions cover background refetches, missing stake accounts, CSV escaping and formula prefixes, including full-width operators. The PR records **434 passing Jest tests**, with **17** in the focused suites, plus TypeScript and ESLint checks. [Fixes #203](https://github.com/solana-foundation/solana-governance/issues/203). Merged on 20 October 2026 as [`bbcd837`](https://github.com/solana-foundation/solana-governance/commit/bbcd83758965903264615cde129bd67aee79a026).
+
+### [Nethermind #14372 — malformed receipt post-state lengths](https://github.com/NethermindEth/nethermind/pull/14372)
+
+- **Problem** — Malformed receipt post-state fields could reach `Hash256` with an invalid length and throw `ArgumentException`. In peer-message decoding, that bypassed the normal RLP error handling.
+- **Fix** — Check the length before constructing `Hash256` and throw `RlpException` for malformed post-state fields. The merged patch covers legacy and eth/69 message decoders, receipt storage and Optimism variants. Valid empty and 32-byte post-state fields retain their behaviour.
+- **Proof** — Regression cases assert `RlpException` for malformed lengths, including 5, 31, 33 and 34 bytes in the message decoders. The merged diff includes Ethereum and Optimism coverage. The change puts already rejected inputs on the expected error path. Merged on 19 October 2026 as [`c1e371b`](https://github.com/NethermindEth/nethermind/commit/c1e371b633bac35e231cded69e4a9d9d3c6cae2b).
+
+### [Nethermind #14338 — Docker UDP discovery metadata](https://github.com/NethermindEth/nethermind/pull/14338)
+
+- **Problem** — The standard and chiseled images declared `30303/tcp` but omitted `30303/udp`, which Nethermind uses for peer discovery. Automatic publishing with `docker run -P` therefore did not pick up the UDP port.
+- **Fix** — Declare both protocols in both Dockerfiles and extend the existing image metadata check to require them.
+- **Proof** — The PR records that both published images lacked the UDP declaration before the fix. Patched builds passed the exposed-port checks for TCP and UDP. This changes image metadata, while the client retains its existing runtime networking configuration. Merged on 16 October 2026 as [`0137e99`](https://github.com/NethermindEth/nethermind/commit/0137e997653badfd7365630f4bfbe48f58246b80).
+
+### [EthSystems Web #50 — Aztec privacy model in the FAQ](https://github.com/ethsystems/web/pull/50)
+
+- **Problem** — The FAQ grouped Aztec under account-based privacy. Aztec uses private notes, commitments and nullifiers alongside separate public contract state.
+- **Fix** — Describe Aztec's hybrid model and limit the encrypted balance comparison to some FHE-based confidential-token designs.
+- **Proof** — The original PR checked the wording against Aztec's state documentation and reports **63 passing tests**, including a focused case that failed on the original wording. The [maintainer confirmed the FAQ edit landed on `main`](https://github.com/ethsystems/web/pull/50#issuecomment-6165701204). The mirror carried the wording change and omitted the proposed test. Mirrored to `main` on 14 October 2026 as [`638a7a1`](https://github.com/ethsystems/web/commit/638a7a1dfd84fe65d592ba07cf5700f893694d4f).
+
+### [EthSystems Map #203 — Trading domain use-case links](https://github.com/ethsystems/map/pull/203)
+
+- **Problem** — The Trading domain listed `Private DvP (link missing)` as a primary use case. The entry had no canonical use-case page.
+- **Fix** — Remove the placeholder. The final diff links Private Repo, Private Stocks and Private Commodities as primary use cases and adds separate links for the Atomic DvP and Private Trade Settlement approaches.
+- **Proof** — Checked the replacement paths in the merged diff. The PR records passing content validation, terminology checks and `git diff --check`. Merged on 13 October 2026 as [`8451037`](https://github.com/ethsystems/map/commit/84510370647cf02006ff758c27516e886a7f9638).
+
 ### [EthSystems Works #51 — rotortree snapshot root panic](https://github.com/ethsystems/works/pull/51) · Medium API reliability (self-assessed)
 
 - **Problem:** A valid `rotortree` Merkle tree can grow to `MAX_DEPTH`, but `TreeSnapshot` stores only `MAX_DEPTH` non-root level slots in `levels`. Calling the public `level_len(depth)` or `get_node(depth, index)` at that depth indexed `levels[MAX_DEPTH]` and panicked, including before the tree reached full leaf capacity. This is a reproducible reliability defect; a production outage or remote exploit has not been demonstrated.
@@ -71,6 +143,54 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 - **Proof:** A deterministic clock-based reproduction compares fresh validation against cache reuse at `iat + 1`, exact expiry, and subsequent times. Both manual HS256 and library fallback paths are covered by regressions. Merged 5 October 2026 as [`eeca264`](https://github.com/NethermindEth/nethermind/commit/eeca26403bef8420a980ebde700c9e338caa75e8).
 
 
+### [ethereum.org #19368 — contributor onboarding in the README](https://github.com/ethereum/ethereum-org-website/pull/19368)
+
+- **Problem** — The contributor walkthrough had two stale links. It also pointed locale configuration at `.env` after creating `.env.local` and skipped the staging and upstream-tracking steps needed by a new contributor.
+- **Fix** — Link the current Translation Program and emoji-key pages, use `.env.local` for build locales, and document staging and first-push tracking.
+- **Proof** — The PR records working replacement links, locale selection with the pinned Next.js loader, and local Git fixtures that reproduced the failed commit and first push. The change was listed in the [v11.29.1 deployment](https://github.com/ethereum/ethereum-org-website/pull/19430). Merged on 7 October 2026 as [`efb29af`](https://github.com/ethereum/ethereum-org-website/commit/efb29af97f47ab076c52bcb3771dd5facafdc377).
+
+### [Nethermind .NET RISC-V #18 — Stateless Executor source link](https://github.com/NethermindEth/dotnet-riscv/pull/18)
+
+- **Problem** — The README pointed to a deleted feature branch, so readers could not reach the Stateless Executor source that the repository builds for RISC-V.
+- **Fix** — Point the link to [`Nethermind.Stateless.Executor` on `master`](https://github.com/NethermindEth/nethermind/tree/master/src/Nethermind/Nethermind.Stateless.Executor).
+- **Proof** — The PR records a 404 for the old ref and verifies that the replacement directory contains the project and implementation. The merged diff changes one README line. Merged on 7 October 2026 as [`41038a0`](https://github.com/NethermindEth/dotnet-riscv/commit/41038a063eecd9c6998917c7be0b1170c08d829d).
+
+### [Nethermind Pluto #714 — topic labels at the default log level](https://github.com/NethermindEth/pluto/pull/714)
+
+- **Problem** — At `info`, a global tracing filter disabled DEBUG topic spans before the metrics layer could see them. Warning and error counters could therefore carry an empty `topic` label.
+- **Fix** — Give metrics a separate filter for topic spans and warning/error events, keeping unrelated DEBUG callsites disabled. The maintainer's final PR limits the counters to Pluto events.
+- **Proof** — The regression uses the real tracing initialiser and checks labelled warning and error counters at `info`. A control verifies that unrelated DEBUG spans stay disabled. The original PR reports **15 passing tracing tests**, and the upstream PR retains the fix and regression commits. Landed through [#720](https://github.com/NethermindEth/pluto/pull/720) on 6 October 2026 as [`0aec20b`](https://github.com/NethermindEth/pluto/commit/0aec20b0cb62ad1d02d25553da9f423dd40cd1be).
+
+### [BlackRock HOLA #69 — Forrester quick-start benchmark](https://github.com/blackrock/HOLA/pull/69)
+
+- **Problem** — Both quick-start examples used `sin(term / 2)` where the benchmark uses `sin(2 * term)`, with `term = 6 * x - 2`. Copying either example gave a different objective from the one the stated minimum describes.
+- **Fix** — Correct both examples and update the README's approximate minimum to `-6.02074`.
+- **Proof** — A regression extracts the two documented functions and compares each with the repository benchmark at five inputs. All **10 comparisons** failed before the correction and agreed within `1e-12` after it. Merged on 6 October 2026 as [`55647c9`](https://github.com/blackrock/HOLA/commit/55647c9350fc235a39663820a3c9e12027246dfe).
+
+### [EthSystems Web #46 — sibling RFP routes](https://github.com/ethsystems/web/pull/46)
+
+- **Problem** — Bare links between RFP files fell through to `/use-cases/` because RFPs are outside the graph and the relative filename had no directory prefix.
+- **Fix** — Route bare `rfp-*.md` links to `/rfps/` before graph matching and preserve query strings and fragments.
+- **Proof** — Checked all seven current sibling-link occurrences. Regressions cover four RFP targets and fragment preservation. The combined upstream change reports **62/62** passing tests. Grouped in [#49](https://github.com/ethsystems/web/pull/49) and cherry-picked to `main` on 5 October 2026 as [`3330621`](https://github.com/ethsystems/web/commit/3330621002207df1135787d66eb93c25792c773b).
+
+### [EthSystems Web #47 — glossary definitions on the next line](https://github.com/ethsystems/web/pull/47)
+
+- **Problem** — The glossary parser read only the term line. The Data Availability Layer entry put its definition on the next line, so the generated definition was empty and the term was omitted from the public glossary.
+- **Fix** — Use the immediate continuation line when the inline definition is empty. Keep category headings and new terms out of the previous definition.
+- **Proof** — Tests cover the missing definition, the next-term and next-category boundaries, and existing inline and linked terms. The regenerated entry contains its definition, and the combined upstream change reports **62/62** passing tests. Grouped in [#49](https://github.com/ethsystems/web/pull/49) and cherry-picked to `main` on 5 October 2026 as [`3330621`](https://github.com/ethsystems/web/commit/3330621002207df1135787d66eb93c25792c773b).
+
+### [EthSystems Web #48 — Private Bonds link to the Shielding pattern](https://github.com/ethsystems/web/pull/48)
+
+- **Problem** — The Private Bonds Part 3 write-up linked to a file removed when [Map #112](https://github.com/ethsystems/map/pull/112) consolidated the shielded balances material.
+- **Fix** — Point `Custom UTXO` to the Shielding pattern and add the matching `map_refs` entry.
+- **Proof** — Checked the current Map tree, parsed the frontmatter and inspected the generated HTML. The combined upstream change reports **62/62** passing tests. Grouped in [#49](https://github.com/ethsystems/web/pull/49) and cherry-picked to `main` on 5 October 2026 as [`3330621`](https://github.com/ethsystems/web/commit/3330621002207df1135787d66eb93c25792c773b).
+
+### [Promptfoo ModelAudit #1859 — SafeTensors files misrouted as zlib](https://github.com/promptfoo/modelaudit/pull/1859)
+
+- **Problem** — A valid SafeTensors header length such as 8,312 bytes begins with a prefix that also looks like preset-dictionary zlib. Compression took precedence, sending a valid model shard to the wrong scanner.
+- **Fix** — Use the SafeTensors route when the extension is native and the bounded header fully parses. Ambiguous or inconclusive inputs and genuine zlib fixtures retain compression routing.
+- **Proof** — The upstream PR reports **19 passing focused cases**, including all five reported header sizes, genuine compressed input and scanner coverage for benign and malicious metadata. The installed SafeTensors reader accepted all five fixtures. [Fixes #1854](https://github.com/promptfoo/modelaudit/issues/1854). Landed through [#1863](https://github.com/promptfoo/modelaudit/pull/1863) on 4 October 2026 as [`2a5185a`](https://github.com/promptfoo/modelaudit/commit/2a5185a32a3993ac6188b20a04fe6cec7cc2eddc).
+
 ### [Centrifuge API v3 #489](https://github.com/centrifuge/api-v3/pull/489)
 
 - **Problem:** Pharos (chain ID `1672`) was listed in `networkNames` but missing from `explorerUrls`. The indexer therefore initialised `Blockchain.explorer` without a Pharos URL, causing Token and NAV links to fall back to the pool dashboard.
@@ -89,11 +209,35 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 - **Fix:** Associated all three email actions with `GATE_API_EXTEND_ORIGIN_TRIAL` and added one regression covering the three process definitions. The change leaves the email URL, prerequisites and approval rules untouched.
 - **Proof:** The regression failed on the unpatched `main` branch for all three definitions with `AssertionError: 3 not found in []`, then passed after the fix. Ruff lint and formatting, the licence check, `git diff --check` and mypy across 363 source files also passed. A maintainer approved the change, and Google's merge queue landed it as [`ca80064`](https://github.com/GoogleChrome/chromium-dashboard/commit/ca80064d966c5f58df7c25941ebe8416d7ae9a03) on 29 September 2026. It was subsequently included in the closed [deployment release #6950](https://github.com/GoogleChrome/chromium-dashboard/issues/6950).
 
+### [Ethereum EIPs #12360 — EIP-8141 calldata floor dependency](https://github.com/ethereum/EIPs/pull/12360)
+
+- **Problem** — EIP-8141 used EIP-7976's calldata-gas constants in its intrinsic-gas calculation while omitting EIP-7976 from its required dependencies.
+- **Fix** — I proposed adding EIP-7976 to `requires`. The maintainer's replacement also removed the superseded EIP-7623 dependency and updated the calldata-floor references in the body.
+- **Proof** — The original PR records Markdown lint and dependency-order checks. The merged diff confirms the dependency correction and matching references in the specification. Landed through [#12395](https://github.com/ethereum/EIPs/pull/12395) on 29 September 2026 as [`5c0236f`](https://github.com/ethereum/EIPs/commit/5c0236f9c216640909aad63d70ec9df59ac85457).
+
+### [EthSystems Web #45 — glossary link preservation](https://github.com/ethsystems/web/pull/45)
+
+- **Problem** — Glossary generation stripped URLs from linked term names, and definitions could render links as literal Markdown.
+- **Fix** — Retain link metadata in the generated glossary and render definition links. Resolve internal Map links to site routes and root Map documents to their GitHub source.
+- **Proof** — The upstream commit records **58/58** passing tests and a **218-page** build. Regressions cover linked terms, external references and internal routes. Cherry-picked upstream on 28 September 2026 as [`63f99bd`](https://github.com/ethsystems/web/commit/63f99bde89cddf512f0304b9912fd25e8917ca81).
+
 ### [OpenAI Codex Security #1020](https://github.com/openai/codex-security/pull/1020)
 
 - **Problem:** The `scan --patch` workflow could report success when the model returned `no_change` without explaining how it had checked the finding. A claim that no fix was needed could therefore clear the finding without verification evidence.
 - **Fix:** Extended the existing verification requirement to `no_change` results. Missing or whitespace-only verification now produces a failed result and exit code 2. Valid `no_change` results remain accepted, and the response instructions explicitly require verification for both successful statuses. This checks that an explanation exists; it does not establish that the explanation is true.
 - **Proof:** Controlled before/after tests reproduced success for missing and blank verification on the unpatched code and rejection after the fix. The [maintainer confirmed](https://github.com/openai/codex-security/pull/1020#issuecomment-5855914520) 72 focused tests passed, plus two full SDK runs with 3,242 passed, 50 skipped and no failures each. Builds, type checks, formatting and GitHub CI passed. Approved and merged on 27 September 2026, with the original fix credited to me.
+
+### [OpenAI Codex Security #1021 — Solidity diff scan coverage](https://github.com/openai/codex-security/pull/1021)
+
+- **Problem** — The shared text-code allowlist omitted `.sol`. A Solidity-only diff could produce zero in-scope files and no review items. Solidity sources also dropped out of ranking inputs.
+- **Fix** — Add `.sol` to the allowlist and use the existing sampled-text preview. Full-repository inventory already included these files.
+- **Proof** — Five inventory and ranking regressions failed on `main` and passed with the fix. Coverage spans repository ranking, revision diffs and local patches. The PR reports **1,151 passing plugin tests**, with 8 skipped, alongside the SDK build and compatibility checks. Merged on 25 September 2026 as [`ce7f75c`](https://github.com/openai/codex-security/commit/ce7f75c1efd5c483bd4500bda9175775bd993daa).
+
+### [EthSystems Web #44 — broken proof-of-concept links](https://github.com/ethsystems/web/pull/44)
+
+- **Problem** — Four write-ups linked to the PoC repository's nonexistent `main` branch or an obsolete private-trade-settlement path.
+- **Fix** — Use the PoC repository's `master` branch and correct the cross-chain spec directory.
+- **Proof** — The upstream commit records checks that all three replacement spec paths exist. The [maintainer confirmed the cherry-pick](https://github.com/ethsystems/web/pull/44#issuecomment-5831969353). Cherry-picked upstream on 24 September 2026 as [`82bd4f0`](https://github.com/ethsystems/web/commit/82bd4f01ebe61dc1fec30d0b1c41de0c67ae1019).
 
 ### [OpenAI Guardrails JS #148](https://github.com/openai/openai-guardrails-js/pull/148)
 
