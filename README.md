@@ -98,13 +98,13 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 
 - **Problem:** Rebar3 Common Test runnables emitted a bare group name after `--case` instead of the required `--group <name>`.
 - **Fix:** Insert the flag only for grouped tests, leaving ungrouped runnables unchanged; add both grouped and ungrouped regressions.
-- **Proof:** The new regression failed before the fix while **1,809 control tests passed**. Workspace tests passed in reported Linux and macOS OTP matrices. **Meta internal merge:** `robertoaloi` imported the contribution into internal review and merged it as [`05020fd`](https://github.com/WhatsApp/erlang-language-platform/commit/05020fda13fa6592538fb56ca2b1d463ab3e0c8f), as [confirmed by Meta's code-sync bot](https://github.com/WhatsApp/erlang-language-platform/pull/284#issuecomment-6078526521). GitHub marks the original PR closed rather than natively merged.
+- **Proof:** The new regression failed before the fix while **1,809 control tests passed**. Workspace tests passed in reported Linux and macOS OTP matrices. **Meta internal merge:** `robertoaloi` imported the contribution into internal review and merged it as [`05020fd`](https://github.com/WhatsApp/erlang-language-platform/commit/05020fda13fa6592538fb56ca2b1d463ab3e0c8f), as [confirmed by Meta's code-sync bot](https://github.com/WhatsApp/erlang-language-platform/pull/284#issuecomment-6078526521). GitHub marks the original PR closed rather than natively merged. The [14 October 2026 release](https://github.com/WhatsApp/erlang-language-platform/releases/tag/2026-10-14) credits the fix.
 
 ### [Nethermind Juno #4146 — JSON-RPC notification responses](https://github.com/NethermindEth/juno/pull/4146)
 
 - **Problem:** Juno sent JSON-RPC error responses to requests without an `id` when the method was unknown or parameters invalid. The JSON-RPC specification prohibits responding to notifications.
 - **Fix:** Suppress all notification responses after dispatch without suppressing error responses for ID-bearing requests.
-- **Proof:** Four red/green regressions cover unknown-method notifications, invalid-parameter notifications, notification-only batches and mixed batches. The relevant packages passed `go test -race`. Approved and merged 8 October 2026 as [`4c6b4d3`](https://github.com/NethermindEth/juno/commit/4c6b4d318a6eb038fabb918db7cf271763827c80).
+- **Proof:** Four red/green regressions cover unknown-method notifications, invalid-parameter notifications, notification-only batches and mixed batches. The relevant packages passed `go test -race`. Approved and merged 8 October 2026 as [`4c6b4d3`](https://github.com/NethermindEth/juno/commit/4c6b4d318a6eb038fabb918db7cf271763827c80). Shipped in [Juno v0.17.0](https://github.com/NethermindEth/juno/releases/tag/v0.17.0), whose release notes credit this PR as my first contribution.
 
 ### [Polygon Agent CLI #142 — x402 dry-run transaction safety](https://github.com/0xPolygon/polygon-agent-cli/pull/142)
 
@@ -189,7 +189,7 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 
 - **Problem** — A valid SafeTensors header length such as 8,312 bytes begins with a prefix that also looks like preset-dictionary zlib. Compression took precedence, sending a valid model shard to the wrong scanner.
 - **Fix** — Use the SafeTensors route when the extension is native and the bounded header fully parses. Ambiguous or inconclusive inputs and genuine zlib fixtures retain compression routing.
-- **Proof** — The upstream PR reports **19 passing focused cases**, including all five reported header sizes, genuine compressed input and scanner coverage for benign and malicious metadata. The installed SafeTensors reader accepted all five fixtures. [Fixes #1854](https://github.com/promptfoo/modelaudit/issues/1854). Landed through [#1863](https://github.com/promptfoo/modelaudit/pull/1863) on 4 October 2026 as [`2a5185a`](https://github.com/promptfoo/modelaudit/commit/2a5185a32a3993ac6188b20a04fe6cec7cc2eddc).
+- **Proof** — The upstream PR reports **19 passing focused cases**, including all five reported header sizes, genuine compressed input and scanner coverage for benign and malicious metadata. The installed SafeTensors reader accepted all five fixtures. [Fixes #1854](https://github.com/promptfoo/modelaudit/issues/1854). Landed through [#1863](https://github.com/promptfoo/modelaudit/pull/1863) on 4 October 2026 as [`2a5185a`](https://github.com/promptfoo/modelaudit/commit/2a5185a32a3993ac6188b20a04fe6cec7cc2eddc). Released in [v0.2.54](https://github.com/promptfoo/modelaudit/releases/tag/v0.2.54).
 
 ### [Centrifuge API v3 #489](https://github.com/centrifuge/api-v3/pull/489)
 
@@ -212,8 +212,8 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 ### [Ethereum EIPs #12360 — EIP-8141 calldata floor dependency](https://github.com/ethereum/EIPs/pull/12360)
 
 - **Problem** — EIP-8141 used EIP-7976's calldata-gas constants in its intrinsic-gas calculation while omitting EIP-7976 from its required dependencies.
-- **Fix** — I proposed adding EIP-7976 to `requires`. The maintainer's replacement also removed the superseded EIP-7623 dependency and updated the calldata-floor references in the body.
-- **Proof** — The original PR records Markdown lint and dependency-order checks. The merged diff confirms the dependency correction and matching references in the specification. Landed through [#12395](https://github.com/ethereum/EIPs/pull/12395) on 29 September 2026 as [`5c0236f`](https://github.com/ethereum/EIPs/commit/5c0236f9c216640909aad63d70ec9df59ac85457).
+- **Fix** — I proposed adding EIP-7976 to `requires`. The maintainer adopted that correction in a replacement PR, removed the superseded EIP-7623 dependency and updated the calldata-floor references in the body.
+- **Proof** — The original PR records Markdown lint and dependency-order checks. The maintainer-authored [#12395](https://github.com/ethereum/EIPs/pull/12395) superseded my PR and merged on 29 September 2026 as [`5c0236f`](https://github.com/ethereum/EIPs/commit/5c0236f9c216640909aad63d70ec9df59ac85457).
 
 ### [EthSystems Web #45 — glossary link preservation](https://github.com/ethsystems/web/pull/45)
 
@@ -290,8 +290,8 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 ### [Nethermind #13747](https://github.com/NethermindEth/nethermind/pull/13747)
 
 - **Problem:** Engine API V3 and later accepted explicit null values for required payload fields and returned the wrong class of error later.
-- **Fix:** Rejected null or omitted `withdrawals`, `blobGasUsed` and `excessBlobGas` as invalid parameters.
-- **Proof:** Regressions cover explicit null and omitted fields. The maintainer PR superseded my #13734 while retaining my commits and authorship.
+- **Fix:** Return invalid parameters for explicit `null` in `withdrawals`, `blobGasUsed` or `excessBlobGas`, and for omitted `withdrawals`.
+- **Proof:** Regressions cover explicit `null` and omitted fields. The baseline already rejected omitted `blobGasUsed` and `excessBlobGas`. The maintainer PR superseded my [#13734](https://github.com/NethermindEth/nethermind/pull/13734) while retaining my commits and authorship.
 
 ### [Nethermind #13755](https://github.com/NethermindEth/nethermind/pull/13755)
 
@@ -326,5 +326,5 @@ For executable bugs, I seek a reproducible failure on the upstream base, a narro
 ### [Trail of Bits Skills #306](https://github.com/trailofbits/skills/pull/306)
 
 - **Problem:** An obsolete configuration invoked the removed `codex mcp-server` command and could break Claude Code start-up.
-- **Fix:** I reported and proposed the removal in #303. The maintainer shipped the core fix in the broader #306 clean-up.
+- **Fix:** I proposed removing the obsolete server registration in [#303](https://github.com/trailofbits/skills/pull/303) after `selimacerbas` reported the start-up failure in [#301](https://github.com/trailofbits/skills/issues/301). The maintainer shipped the removal in the broader #306 clean-up.
 - **Proof:** Plugin loadability, metadata, shell, Bats, JavaScript and temporary Git fixture checks covered the change.
